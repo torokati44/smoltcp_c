@@ -7,4 +7,4 @@ matrix:
   allow_failures:
     - rust: stable # until 1.15 comes out
 script:
-   - cargo build
+   - cargo build --verbose
