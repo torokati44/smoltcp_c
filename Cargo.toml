@@ -6,7 +6,7 @@ authors = ["TÖRÖK Attila <torokati44@gmail.com>"]
 
 [lib]
 name = "smoltcp_c"
-crate-type = ["staticlib"]
+crate-type = ["lib", "staticlib"]
 
 [dependencies]
 smoltcp = { version = "0.2.1", default_features = false, features = ["use_std", "use_collections", "use_log", "verbose"] }

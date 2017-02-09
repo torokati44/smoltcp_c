@@ -65,12 +65,12 @@ pub unsafe extern fn make_smoltcp_stack(opp_module_id: i32) -> *mut Stack<'stati
     let tcp_socket = TcpSocket::new(tcp_rx_buffer, tcp_tx_buffer);
 
     let hardware_addr  = EthernetAddress([0x0A, 0xAA, 0x00, 0x00, 0x00, 0x02]);
-    let protocol_addrs = [IpAddress::v4(10, 0, 0, 3)];
+    let protocol_addrs = [IpAddress::v4(10, 0, 0, 2)];
     let iface          = EthernetInterface::new(
         Box::new(device), Box::new(arp_cache) as Box<ArpCache>,
         hardware_addr, protocol_addrs);
 
-    let mut sockets = SocketSet::new(vec![]);
+    let mut sockets  = SocketSet::new(vec![]);
     let tcp_handle = sockets.add(tcp_socket);
 
     let stack = Stack{ iface: iface, tcp_handle : tcp_handle, sockets : sockets, tcp_active: false};
@@ -121,13 +121,11 @@ impl<'a, 'b, 'c> Stack<'a, 'b, 'c> {
 
             if socket.may_recv() {
                 let data = {
-                    let mut data = socket.recv(128).unwrap().to_owned();
+                    let mut data = socket.recv(2000).unwrap().to_owned();
                     if data.len() > 0 {
                         debug!("tcp:6970 recv data: {:?}",
                                str::from_utf8(data.as_ref()).unwrap_or("(invalid utf8)"));
-                        data = data.split(|&b| b == b'\n').collect::<Vec<_>>().concat();
-                        data.reverse();
-                        data.extend(b"\n");
+                        //data.reverse();
                     }
                     data
                 };
