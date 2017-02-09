@@ -15,7 +15,6 @@ use smoltcp::iface::{ArpCache, SliceArpCache, EthernetInterface};
 use smoltcp::socket::{SocketHandle, SocketSet, AsSocket, TcpSocket, TcpSocketBuffer};
 use smoltcp::phy::Tracer;
 
-
 pub mod device;
 use device::CInterface;
 
@@ -38,11 +37,11 @@ pub unsafe extern fn make_smoltcp_stack(opp_module_id: i32) -> *mut Stack<'stati
         .format(move |record: &LogRecord| {
             let elapsed = Instant::now().duration_since(startup_time);
             if record.target().starts_with("smoltcp::") {
-                format!("\x1b[0m[{:6}.{:03}s] ({}): {}\x1b[0m",
+                format!("[{:6}.{:03}s] ({}): {}",
                         elapsed.as_secs(), elapsed.subsec_nanos() / 1000000,
                         record.target().replace("smoltcp::", ""), record.args())
             } else {
-                format!("\x1b[32m[{:6}.{:03}s] ({}): {}\x1b[0m",
+                format!("[{:6}.{:03}s] ({}): {}",
                         elapsed.as_secs(), elapsed.subsec_nanos() / 1000000,
                         record.target(), record.args())
             }
@@ -52,7 +51,7 @@ pub unsafe extern fn make_smoltcp_stack(opp_module_id: i32) -> *mut Stack<'stati
         .unwrap();
 
     fn trace_writer(printer: PrettyPrinter<EthernetFrame<&[u8]>>) {
-        print!("\x1b[37m{}\x1b[0m", printer)
+        print!("{}", printer)
     }
   
     let device = CInterface::new(opp_module_id).unwrap();
