@@ -4,7 +4,5 @@ matrix:
     - rust: stable
     - rust: beta
     - rust: nightly
-  allow_failures:
-    - rust: stable # until 1.15 comes out
 script:
-   - cargo test
+  - cargo test

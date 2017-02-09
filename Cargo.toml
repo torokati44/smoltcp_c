@@ -9,7 +9,10 @@ name = "smoltcp_c"
 crate-type = ["lib", "staticlib"]
 
 [dependencies]
-smoltcp = { version = "0.2.1", default_features = false, features = ["use_std", "use_collections", "use_log", "verbose"] }
 log = "0.3.6"
-lazy_static = "0.2.2"
 env_logger = "0.4.0"
+
+[dependencies.smoltcp]
+git = "https://github.com/m-labs/smoltcp.git"
+default_features = false
+features = ["use_std", "use_collections", "use_log", "verbose"]
