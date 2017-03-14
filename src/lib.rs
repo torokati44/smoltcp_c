@@ -5,7 +5,6 @@ extern crate smoltcp;
 
 use std::str::{self};
 use std::time::{Instant};
-use std::vec::Vec;
 
 use log::{LogLevelFilter, LogRecord};
 use env_logger::{LogBuilder};
@@ -18,6 +17,8 @@ use smoltcp::phy::Tracer;
 pub mod device;
 use device::CInterface;
 
+use std::ffi::CStr;
+use std::os::raw::c_char;
 
 pub struct Stack<'a, 'b : 'a, 'c: 'a + 'b> {
     iface : EthernetInterface<'a, 'b, 'c, Tracer<CInterface, EthernetFrame<&'static[u8]>>>,
@@ -29,9 +30,8 @@ pub struct Stack<'a, 'b : 'a, 'c: 'a + 'b> {
 // This will be called from C++ to create the stack for the OPP module given by its id.
 // The returned pointer should be used only to identify the stack instance by
 // passing it to poll_smoltcp_stack, and must not be dereferenced from C++.
-// TODO: take MAC and IP addresses as parameters
 #[no_mangle]
-pub unsafe extern fn make_smoltcp_stack(opp_module_id: i32) -> *mut Stack<'static,'static,'static> {
+pub unsafe extern fn make_smoltcp_stack(opp_module_id: i32, mac: *const c_char, ip: *const c_char) -> *mut Stack<'static,'static,'static> {
     let startup_time = Instant::now();
     LogBuilder::new()
         .format(move |record: &LogRecord| {
@@ -63,8 +63,12 @@ pub unsafe extern fn make_smoltcp_stack(opp_module_id: i32) -> *mut Stack<'stati
     let tcp_tx_buffer = TcpSocketBuffer::new(vec![0; 128]);
     let tcp_socket = TcpSocket::new(tcp_rx_buffer, tcp_tx_buffer);
 
-    let hardware_addr  = EthernetAddress([0x0A, 0xAA, 0x00, 0x00, 0x00, 0x02]);
-    let protocol_addrs = [IpAddress::v4(10, 0, 0, 2)];
+    let m = CStr::from_ptr(mac);
+    let i = CStr::from_ptr(ip);
+
+    let hardware_addr = EthernetAddress::parse(m.to_str().unwrap()).unwrap();
+    let protocol_addrs = [IpAddress::parse(i.to_str().unwrap()).unwrap()];
+
     let iface          = EthernetInterface::new(
         Box::new(device), Box::new(arp_cache) as Box<ArpCache>,
         hardware_addr, protocol_addrs);
@@ -120,7 +124,7 @@ impl<'a, 'b, 'c> Stack<'a, 'b, 'c> {
 
             if socket.may_recv() {
                 let data = {
-                    let mut data = socket.recv(2000).unwrap().to_owned();
+                    let data = socket.recv(2000).unwrap().to_owned();
                     if data.len() > 0 {
                         debug!("tcp:6970 recv data: {:?}",
                                str::from_utf8(data.as_ref()).unwrap_or("(invalid utf8)"));

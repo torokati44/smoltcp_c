@@ -1,6 +1,7 @@
 extern crate smoltcp_c;
 
 use std::slice;
+use std::ffi::CString;
 
 #[no_mangle]
 pub fn smoltcp_send_eth_frame(opp_module_id: i32, data: *const u8, size: u32) -> () {
@@ -32,20 +33,9 @@ pub unsafe fn smoltcp_recv_eth_frame(opp_module_id: i32, buffer: *mut u8) -> u32
 #[test]
 fn it_works() {
     unsafe {
-        let s = smoltcp_c::make_smoltcp_stack(3);
+        let m = CString::new("0A:AA:00:00:00:EF").unwrap();
+        let i = CString::new("10.0.0.100").unwrap();
+        let s = smoltcp_c::make_smoltcp_stack(3, m.as_ptr(), i.as_ptr());
         smoltcp_c::poll_smoltcp_stack(s, 44);
     }
 }
-
-/*
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-    	let s = smoltcp_c::make_smoltcp_stack(2);
-        assert_eq!(4, add_two(2));
-    }
-
-}*/
