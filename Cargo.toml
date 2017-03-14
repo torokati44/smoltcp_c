@@ -15,4 +15,4 @@ env_logger = "0.4.0"
 [dependencies.smoltcp]
 git = "https://github.com/m-labs/smoltcp.git"
 default_features = false
-features = ["use_std", "use_collections", "use_log", "verbose"]
+features = ["std", "collections", "log", "verbose"]

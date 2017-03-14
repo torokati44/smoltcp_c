@@ -3,7 +3,7 @@ use std::vec::Vec;
 use std::io;
 
 use smoltcp::Error;
-use smoltcp::phy::Device;
+use smoltcp::phy::{Device, DeviceLimits};
 
 extern {
     // These are the callbacks into C++, called from poll_smoltcp_stack.
@@ -33,7 +33,11 @@ impl Device for CInterface {
     type RxBuffer = Vec<u8>;
     type TxBuffer = TxBuffer;
 
-    fn mtu(&self) -> usize { self.mtu }
+    fn limits(&self) -> DeviceLimits {
+        let mut limits = DeviceLimits::default();
+        limits.max_transmission_unit = self.mtu;
+        limits
+    }
 
     fn receive(&mut self) -> Result<Self::RxBuffer, Error> {
         let mut buffer = vec![0; self.mtu];

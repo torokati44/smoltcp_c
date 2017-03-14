@@ -3,7 +3,7 @@ extern crate log;
 extern crate env_logger;
 extern crate smoltcp;
 
-use std::str::{self};
+use std::str::{self, FromStr};
 use std::time::{Instant};
 
 use log::{LogLevelFilter, LogRecord};
@@ -66,8 +66,8 @@ pub unsafe extern fn make_smoltcp_stack(opp_module_id: i32, mac: *const c_char, 
     let m = CStr::from_ptr(mac);
     let i = CStr::from_ptr(ip);
 
-    let hardware_addr = EthernetAddress::parse(m.to_str().unwrap()).unwrap();
-    let protocol_addrs = [IpAddress::parse(i.to_str().unwrap()).unwrap()];
+    let hardware_addr = EthernetAddress::from_str(m.to_str().unwrap()).unwrap();
+    let protocol_addrs = [IpAddress::from_str(i.to_str().unwrap()).unwrap()];
 
     let iface          = EthernetInterface::new(
         Box::new(device), Box::new(arp_cache) as Box<ArpCache>,
