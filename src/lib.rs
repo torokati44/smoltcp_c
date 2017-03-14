@@ -27,12 +27,10 @@ pub struct Stack<'a, 'b : 'a, 'c: 'a + 'b> {
     tcp_active: bool,
 }
 
-// This will be called from C++ to create the stack for the OPP module given by its id.
-// The returned pointer should be used only to identify the stack instance by
-// passing it to poll_smoltcp_stack, and must not be dereferenced from C++.
+
 #[no_mangle]
-pub unsafe extern fn make_smoltcp_stack(opp_module_id: i32, mac: *const c_char, ip: *const c_char) -> *mut Stack<'static,'static,'static> {
-    let startup_time = Instant::now();
+pub unsafe extern fn init_smoltcp_logging()  {
+	let startup_time = Instant::now();
     LogBuilder::new()
         .format(move |record: &LogRecord| {
             let elapsed = Instant::now().duration_since(startup_time);
@@ -49,7 +47,14 @@ pub unsafe extern fn make_smoltcp_stack(opp_module_id: i32, mac: *const c_char, 
         .filter(None, LogLevelFilter::Trace)
         .init()
         .unwrap();
+}
 
+
+// This will be called from C++ to create the stack for the OPP module given by its id.
+// The returned pointer should be used only to identify the stack instance by
+// passing it to poll_smoltcp_stack, and must not be dereferenced from C++.
+#[no_mangle]
+pub unsafe extern fn make_smoltcp_stack(opp_module_id: i32, mac: *const c_char, ip: *const c_char) -> *mut Stack<'static,'static,'static> {
     fn trace_writer(printer: PrettyPrinter<EthernetFrame<&[u8]>>) {
         print!("{}", printer)
     }
