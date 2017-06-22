@@ -10,7 +10,6 @@ crate-type = ["lib", "staticlib"]
 
 [dependencies]
 log = "0.3.6"
-env_logger = "0.4.0"
 
 [dependencies.smoltcp]
 git = "https://github.com/m-labs/smoltcp.git"
