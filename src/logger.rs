@@ -14,9 +14,9 @@ pub unsafe extern "C" fn init_smoltcp_logging() {
     init_ev_logging().unwrap();
 }
 
-struct EVLogger;
+struct CLogger;
 
-impl Log for EVLogger {
+impl Log for CLogger {
     fn enabled(&self, _: &LogMetadata) -> bool {
         true
     }
@@ -32,8 +32,7 @@ impl Log for EVLogger {
 
 pub fn init_ev_logging() -> Result<(), SetLoggerError> {
     log::set_logger(|max_log_level| {
-
         max_log_level.set(LogLevel::Trace.to_log_level_filter());
-        return Box::new(EVLogger);
+        return Box::new(CLogger);
     })
 }
