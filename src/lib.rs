@@ -6,21 +6,22 @@ use std::str::{self, FromStr};
 
 use smoltcp::wire::{EthernetAddress, IpAddress, EthernetFrame, PrettyPrinter};
 use smoltcp::iface::{ArpCache, SliceArpCache, EthernetInterface};
-use smoltcp::socket::{SocketHandle, SocketSet, AsSocket, TcpSocket, TcpSocketBuffer};
+use smoltcp::socket::{SocketHandle, SocketSet, Socket, AsSocket, TcpSocket, TcpSocketBuffer};
 use smoltcp::phy::Tracer;
 
 pub mod logger;
 pub mod device;
 use device::CInterface;
+use std::any::Any;
+use std::borrow::Borrow;
 
+use std::mem;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
 pub struct Stack<'a, 'b: 'a, 'c: 'a + 'b> {
     iface: EthernetInterface<'a, 'b, 'c, Tracer<CInterface, EthernetFrame<&'static [u8]>>>,
-    tcp_handle: SocketHandle,
     sockets: SocketSet<'a, 'b, 'c>,
-    tcp_active: bool,
 }
 
 // This will be called from C++ to create the stack for the OPP module given by its id.
@@ -41,10 +42,6 @@ pub unsafe extern "C" fn make_smoltcp_stack(
 
     let arp_cache = SliceArpCache::new(vec![Default::default(); 8]);
 
-    let tcp_rx_buffer = TcpSocketBuffer::new(vec![0; 64]);
-    let tcp_tx_buffer = TcpSocketBuffer::new(vec![0; 128]);
-    let tcp_socket = TcpSocket::new(tcp_rx_buffer, tcp_tx_buffer);
-
     let m = CStr::from_ptr(mac);
     let i = CStr::from_ptr(ip);
 
@@ -59,18 +56,59 @@ pub unsafe extern "C" fn make_smoltcp_stack(
     );
 
     let mut sockets = SocketSet::new(vec![]);
-    let tcp_handle = sockets.add(tcp_socket);
 
     let stack = Stack {
         iface: iface,
-        tcp_handle: tcp_handle,
         sockets: sockets,
-        tcp_active: false,
     };
     let boxed_builder = Box::new(stack);
 
     trace!("Stack succesfully created");
     Box::into_raw(boxed_builder)
+}
+
+
+#[no_mangle]
+pub unsafe extern "C" fn make_smoltcp_tcp_socket() -> *mut Socket<'static, 'static> {
+    let tcp_rx_buffer = TcpSocketBuffer::new(vec![0; 64]);
+    let tcp_tx_buffer = TcpSocketBuffer::new(vec![0; 128]);
+    let tcp_sock = TcpSocket::new(tcp_rx_buffer, tcp_tx_buffer);
+
+    Box::into_raw(Box::new(tcp_sock))
+}
+
+
+#[no_mangle]
+pub unsafe extern "C" fn add_smoltcp_tcp_socket(
+    stack: *mut Stack<'static, 'static, 'static>,
+    socket: *mut Socket<'static, 'static>,
+) -> SocketHandle {
+    let x: Result<Box<Socket>, _> = (Box::from_raw(socket) as Box<Any + 'static>).downcast();
+    let mut z = *x.unwrap();
+    {
+        let t: &mut TcpSocket = z.as_socket();
+        t.listen(6970).unwrap();
+    }
+    (*stack).sockets.add(z)
+}
+
+
+
+#[no_mangle]
+pub unsafe extern "C" fn make_add_smoltcp_tcp_socket(
+    stack: *mut Stack<'static, 'static, 'static>,
+) -> SocketHandle {
+    let tcp_rx_buffer = TcpSocketBuffer::new(vec![0; 64]);
+    let tcp_tx_buffer = TcpSocketBuffer::new(vec![0; 128]);
+    let mut z = TcpSocket::new(tcp_rx_buffer, tcp_tx_buffer);
+
+
+    //let mut z = *x.unwrap();
+    {
+        let t: &mut TcpSocket = z.as_socket();
+        t.listen(6970).unwrap();
+    }
+    (*stack).sockets.add(z)
 }
 
 // This will be called from C++, and calls back to there for sending/receiving frames.
@@ -98,6 +136,7 @@ impl<'a, 'b, 'c> Stack<'a, 'b, 'c> {
             Err(e) => debug!("poll error: {}", e),
         }
 
+        /*
         // tcp:6970: echo with reverse
         {
             let mut socket: &mut TcpSocket = self.sockets.get_mut(self.tcp_handle).as_socket();
@@ -138,6 +177,7 @@ impl<'a, 'b, 'c> Stack<'a, 'b, 'c> {
                 socket.close();
             }
         }
+*/
 
         // and doing another real poll after processing to send out frames we just created
         match self.iface.poll(&mut self.sockets, timestamp_ms) {
