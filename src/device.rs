@@ -39,7 +39,7 @@ impl Device for CInterface {
         limits
     }
 
-    fn receive(&mut self) -> Result<Self::RxBuffer, Error> {
+    fn receive(&mut self, _timestamp: u64) -> Result<Self::RxBuffer, Error> {
         let mut buffer = vec![0; self.mtu];
         unsafe {
             let size = smoltcp_recv_eth_frame(self.opp_module_id, buffer.as_mut_ptr()) as usize;
@@ -52,7 +52,7 @@ impl Device for CInterface {
         Ok(buffer)
     }
 
-    fn transmit(&mut self, length: usize) -> Result<Self::TxBuffer, Error> {
+    fn transmit(&mut self, _timestamp: u64, length: usize) -> Result<Self::TxBuffer, Error> {
         Ok(TxBuffer {
             opp_module_id: self.opp_module_id,
             buffer: vec![0; length],

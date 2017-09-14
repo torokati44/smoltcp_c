@@ -4,23 +4,23 @@ extern crate smoltcp;
 
 use std::str::{self, FromStr};
 
-use smoltcp::wire::{EthernetAddress, IpAddress, EthernetFrame, PrettyPrinter};
+use smoltcp::wire::{EthernetAddress, IpAddress};
 use smoltcp::iface::{ArpCache, SliceArpCache, EthernetInterface};
 use smoltcp::socket::{SocketHandle, SocketSet, Socket, AsSocket, TcpSocket, TcpSocketBuffer};
-use smoltcp::phy::Tracer;
+use smoltcp::phy::EthernetTracer;
+
 
 pub mod logger;
 pub mod device;
 use device::CInterface;
 use std::any::Any;
-use std::borrow::Borrow;
 
-use std::mem;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
+
 pub struct Stack<'a, 'b: 'a, 'c: 'a + 'b> {
-    iface: EthernetInterface<'a, 'b, 'c, Tracer<CInterface, EthernetFrame<&'static [u8]>>>,
+    iface: EthernetInterface<'a, 'b, 'c, EthernetTracer<CInterface>>,
     sockets: SocketSet<'a, 'b, 'c>,
 }
 
@@ -33,12 +33,9 @@ pub unsafe extern "C" fn make_smoltcp_stack(
     mac: *const c_char,
     ip: *const c_char,
 ) -> *mut Stack<'static, 'static, 'static> {
-    fn trace_writer(printer: PrettyPrinter<EthernetFrame<&[u8]>>) {
-        print!("{}", printer)
-    }
 
     let device = CInterface::new(opp_module_id).unwrap();
-    let device = Tracer::<_, EthernetFrame<&[u8]>>::new(device, trace_writer);
+    let device = EthernetTracer::new(device, |_timestamp, printer| print!("{}", printer));
 
     let arp_cache = SliceArpCache::new(vec![Default::default(); 8]);
 
@@ -55,7 +52,7 @@ pub unsafe extern "C" fn make_smoltcp_stack(
         protocol_addrs,
     );
 
-    let mut sockets = SocketSet::new(vec![]);
+    let sockets = SocketSet::new(vec![]);
 
     let stack = Stack {
         iface: iface,
@@ -132,7 +129,7 @@ impl<'a, 'b, 'c> Stack<'a, 'b, 'c> {
 
         // doing a real poll first to receive any incoming frames
         match self.iface.poll(&mut self.sockets, timestamp_ms) {
-            Ok(()) => (),
+            Ok(_) => (),
             Err(e) => debug!("poll error: {}", e),
         }
 
@@ -181,7 +178,7 @@ impl<'a, 'b, 'c> Stack<'a, 'b, 'c> {
 
         // and doing another real poll after processing to send out frames we just created
         match self.iface.poll(&mut self.sockets, timestamp_ms) {
-            Ok(()) => (),
+            Ok(_) => (),
             Err(e) => debug!("poll error: {}", e),
         }
     }
