@@ -6,12 +6,11 @@ authors = ["TÖRÖK Attila <torokati44@gmail.com>"]
 
 [lib]
 name = "smoltcp_c"
-crate-type = ["lib", "staticlib"]
+crate-type = ["lib", "staticlib", "dylib"]
 
 [dependencies]
 log = "0.3.6"
 
 [dependencies.smoltcp]
 git = "https://github.com/m-labs/smoltcp.git"
-default_features = false
 features = ["std", "log", "verbose"]

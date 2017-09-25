@@ -35,7 +35,7 @@ pub unsafe extern "C" fn make_smoltcp_stack(
 ) -> *mut Stack<'static, 'static, 'static> {
 
     let device = CInterface::new(opp_module_id).unwrap();
-    let device = EthernetTracer::new(device, |_timestamp, printer| print!("{}", printer));
+    let device = EthernetTracer::new(device, |_timestamp, printer| trace!("{}", printer));
 
     let arp_cache = SliceArpCache::new(vec![Default::default(); 8]);
 
