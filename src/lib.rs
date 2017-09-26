@@ -22,6 +22,8 @@ use std::os::raw::c_char;
 pub struct Stack<'a, 'b: 'a, 'c: 'a + 'b> {
     iface: EthernetInterface<'a, 'b, 'c, EthernetTracer<CInterface>>,
     sockets: SocketSet<'a, 'b, 'c>,
+    tcp_active: bool,
+    tcp_handle: Option<SocketHandle>
 }
 
 // This will be called from C++ to create the stack for the OPP module given by its id.
@@ -57,6 +59,8 @@ pub unsafe extern "C" fn make_smoltcp_stack(
     let stack = Stack {
         iface: iface,
         sockets: sockets,
+        tcp_active: false,
+        tcp_handle: Default::default()
     };
     let boxed_builder = Box::new(stack);
 
@@ -86,7 +90,10 @@ pub unsafe extern "C" fn add_smoltcp_tcp_socket(
         let t: &mut TcpSocket = z.as_socket();
         t.listen(6970).unwrap();
     }
-    (*stack).sockets.add(z)
+
+    let handle = (*stack).sockets.add(z);
+    (*stack).tcp_handle = Some(handle);
+    handle
 }
 
 
@@ -133,10 +140,10 @@ impl<'a, 'b, 'c> Stack<'a, 'b, 'c> {
             Err(e) => debug!("poll error: {}", e),
         }
 
-        /*
+
         // tcp:6970: echo with reverse
         {
-            let mut socket: &mut TcpSocket = self.sockets.get_mut(self.tcp_handle).as_socket();
+            let mut socket: &mut TcpSocket = self.sockets.get_mut(self.tcp_handle.unwrap()).as_socket();
 
             if !socket.is_open() {
                 trace!("Listening on tcp port 6970");
@@ -174,7 +181,7 @@ impl<'a, 'b, 'c> Stack<'a, 'b, 'c> {
                 socket.close();
             }
         }
-*/
+
 
         // and doing another real poll after processing to send out frames we just created
         match self.iface.poll(&mut self.sockets, timestamp_ms) {
