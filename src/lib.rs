@@ -19,12 +19,42 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 
 
+extern "C" {
+    // this is calling BACK TO C++ - implemented there
+    pub fn smoltcp_recv_tcp_data(opp_module_id: i32, port: u16, data: *const u8, size: u32) -> ();
+}
+
 pub struct Stack<'a, 'b: 'a, 'c: 'a + 'b> {
     iface: EthernetInterface<'a, 'b, 'c, EthernetTracer<CInterface>>,
     sockets: SocketSet<'a, 'b, 'c>,
-    tcp_active: bool,
-    tcp_handle: Option<SocketHandle>
+    opp_module_id: i32,
 }
+
+
+// this is called FROM C++
+#[no_mangle]
+pub unsafe extern "C" fn smoltcp_send_tcp_data(
+    stack: *mut Stack<'static, 'static, 'static>,
+    port: u16,
+    data: *const u8,
+    size: u32,
+) -> () {
+    let mut stack = Box::from_raw(stack);
+
+    for mut socket in stack.sockets.iter_mut() {
+        let mut tcp_socket: &mut TcpSocket = socket.as_socket();
+
+        if tcp_socket.local_endpoint().port == port {
+            trace!("got me sock\n");
+
+            tcp_socket.send_slice(std::slice::from_raw_parts(data, size as usize));
+        }
+    }
+
+
+    Box::into_raw(stack);
+}
+
 
 // This will be called from C++ to create the stack for the OPP module given by its id.
 // The returned pointer should be used only to identify the stack instance by
@@ -59,8 +89,7 @@ pub unsafe extern "C" fn make_smoltcp_stack(
     let stack = Stack {
         iface: iface,
         sockets: sockets,
-        tcp_active: false,
-        tcp_handle: Default::default()
+        opp_module_id: opp_module_id,
     };
     let boxed_builder = Box::new(stack);
 
@@ -91,9 +120,7 @@ pub unsafe extern "C" fn add_smoltcp_tcp_socket(
         t.listen(6970).unwrap();
     }
 
-    let handle = (*stack).sockets.add(z);
-    (*stack).tcp_handle = Some(handle);
-    handle
+    (*stack).sockets.add(z)
 }
 
 
@@ -143,45 +170,56 @@ impl<'a, 'b, 'c> Stack<'a, 'b, 'c> {
 
         // tcp:6970: echo with reverse
         {
-            let mut socket: &mut TcpSocket = self.sockets.get_mut(self.tcp_handle.unwrap()).as_socket();
-
-            if !socket.is_open() {
-                trace!("Listening on tcp port 6970");
-                socket.listen(6970).unwrap()
-            }
-
-            if socket.is_active() && !self.tcp_active {
-                debug!("tcp:6970 connected");
-            } else if !socket.is_active() && self.tcp_active {
-                debug!("tcp:6970 disconnected");
-            }
-            self.tcp_active = socket.is_active();
-
-            if socket.may_recv() {
-                let data = {
-                    let data = socket.recv(2000).unwrap().to_owned();
-                    if data.len() > 0 {
-                        debug!(
-                            "tcp:6970 recv data: {:?}",
-                            str::from_utf8(data.as_ref()).unwrap_or("(invalid utf8)")
-                        );
-                        //data.reverse();
-                    }
-                    data
-                };
-                if socket.can_send() && data.len() > 0 {
-                    debug!(
-                        "tcp:6970 send data: {:?}",
-                        str::from_utf8(data.as_ref()).unwrap_or("(invalid utf8)")
-                    );
-                    socket.send_slice(&data[..]).unwrap();
+            for mut socket in self.sockets.iter_mut() {
+                let mut tcp_socket: &mut TcpSocket = socket.as_socket();
+                if !tcp_socket.is_open() {
+                    trace!("Listening on tcp port 6970");
+                    tcp_socket.listen(6970).unwrap()
                 }
-            } else if socket.may_send() {
-                debug!("tcp:6970 close");
-                socket.close();
+
+                if tcp_socket.is_active() {
+                    debug!("tcp:{} is connected", tcp_socket.local_endpoint().port);
+                } else if !tcp_socket.is_active() {
+                    debug!("tcp:{} is not connected", tcp_socket.local_endpoint().port);
+                }
+
+                if tcp_socket.may_recv() {
+                    let data = {
+                        let data = tcp_socket.recv(2000).unwrap().to_owned();
+                        if data.len() > 0 {
+                            debug!(
+                                "tcp:6970 recv data: {:?}",
+                                str::from_utf8(data.as_ref()).unwrap_or("(invalid utf8)")
+                            );
+                            //data.reverse();
+                        }
+                        data
+                    };
+
+                    unsafe {
+                        smoltcp_recv_tcp_data(
+                            self.opp_module_id,
+                            tcp_socket.local_endpoint().port,
+                            data.as_ptr(),
+                            data.len() as u32,
+                        );
+                    }
+                } else if tcp_socket.may_send() {
+                    debug!("tcp:{} close", tcp_socket.local_endpoint().port);
+                    tcp_socket.close();
+                }
             }
         }
 
+        /*
+if tcp_socket.can_send() && data.len() > 0 {
+                        debug!(
+                            "tcp:6970 send data: {:?}",
+                            str::from_utf8(data.as_ref()).unwrap_or("(invalid utf8)")
+                        );
+                        tcp_socket.send_slice(&data[..]).unwrap();
+                    }
+*/
 
         // and doing another real poll after processing to send out frames we just created
         match self.iface.poll(&mut self.sockets, timestamp_ms) {
